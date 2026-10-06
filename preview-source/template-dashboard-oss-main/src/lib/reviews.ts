@@ -7,7 +7,7 @@ export type Snapshot={view:string;start:string;end:string;reportKey:string;objec
 export type Issue={id:string;problem:string;action:string;status:'pending'|'done'|'verified';executedAt:string;followupDate:string;outcome:string;snapshot:Snapshot|null;createdAt:string;updatedAt:string;archivedAt?:string}
 export type Review={id:string;shopId:string;title:string;summary:string;issues:Issue[];createdAt:string;updatedAt:string;archivedAt?:string}
 export type ReviewStore={schemaVersion:1;revision:number;shops:{id:string;name:string}[];bindings:Record<string,string>;reviews:Review[]}
-export const reviewDirectory=()=>process.env.WANXIANG_REVIEW_DIR||path.join(os.homedir(),'.wanxiang-workbench','reviews')
+export const reviewDirectory=()=>process.env.WANXIANG_DEMO==='1' ? (process.env.WANXIANG_DEMO_REVIEW_DIR||path.join(os.homedir(),'.wanxiang-workbench','demo-reviews')) : (process.env.WANXIANG_REVIEW_DIR||path.join(os.homedir(),'.wanxiang-workbench','reviews'))
 const empty=():ReviewStore=>({schemaVersion:1,revision:0,shops:[],bindings:{},reviews:[]})
 export async function readReviews(directory=reviewDirectory()):Promise<ReviewStore>{
   try{const value=JSON.parse(await readFile(path.join(directory,'reviews.json'),'utf8'));if(value.schemaVersion!==1||!Array.isArray(value.reviews)||!Array.isArray(value.shops)||!Number.isInteger(value.revision)||!value.bindings)throw new Error('不支持的复盘文件格式，请先备份后检查');return value}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return empty();throw e}

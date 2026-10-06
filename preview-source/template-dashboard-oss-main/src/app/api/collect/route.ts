@@ -2,14 +2,17 @@ import { spawn } from "node:child_process"
 import { readFile, mkdir, open, unlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { NextResponse } from "next/server"
+import {demoMode} from '@/lib/demo-data'
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 const root = () => path.resolve(process.cwd(), "../..")
 export async function GET() {
+  if(demoMode())return NextResponse.json({state:'idle',message:'演示模式不采集真实报表'})
   try { return NextResponse.json(JSON.parse(await readFile(path.join(root(), "data/collection-status.json"), "utf8"))) }
   catch { return NextResponse.json({ state: "idle", message: "尚未开始采集" }) }
 }
 export async function POST(request: Request) {
+  if(demoMode())return NextResponse.json({error:'演示模式禁止采集真实报表'},{status:403})
   const url = new URL(request.url)
   const origin = request.headers.get("origin")
   const expectedOrigin = `${url.protocol}//${request.headers.get("host")}`

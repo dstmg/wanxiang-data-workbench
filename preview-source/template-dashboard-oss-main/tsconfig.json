@@ -34,10 +34,11 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-empty-test/types/**/*.ts",
     ".next-review-qa/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-empty-test/types/**/*.ts"
+    ".next-demo-test/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

@@ -6,6 +6,7 @@ const os = require('node:os');
 const net = require('node:net');
 const {spawn, execFile} = require('node:child_process');
 const delay = ms => new Promise(r => setTimeout(r, ms));
+const demo = process.argv.includes('--demo');
 async function main() {
   const root = path.resolve(__dirname, '..');
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'wanxiang-empty-test-'));
@@ -19,7 +20,7 @@ async function main() {
   const origin = `http://127.0.0.1:${port}`;
   let log = '';
   const child = spawn(process.execPath, [path.join(root,'node_modules/next/dist/bin/next'), 'dev', '--hostname', '127.0.0.1', '--port', String(port)], {
-    cwd: root, windowsHide: true, env: {...process.env, NEXT_TELEMETRY_DISABLED:'1', WANXIANG_DATA_DIR:data, WANXIANG_REVIEW_DIR:review, WANXIANG_NEXT_DIST_DIR:'.next-empty-test'}
+    cwd: root, windowsHide: true, env: {...process.env, NEXT_TELEMETRY_DISABLED:'1', WANXIANG_DEMO:demo?'1':'0', WANXIANG_DATA_DIR:data, WANXIANG_REVIEW_DIR:review, WANXIANG_DEMO_REVIEW_DIR:path.join(temp,'demo-reviews'), WANXIANG_NEXT_DIST_DIR:demo?'.next-demo-test':'.next-empty-test'}
   });
   child.stdout.on('data', b => {log += b.toString()});
   child.stderr.on('data', b => {log += b.toString()});
@@ -36,16 +37,18 @@ async function main() {
     for(let n=0;n<120;n++) {
       if(startupError) throw startupError;
       if(child.exitCode!==null) throw new Error('Server exited: '+log.slice(-3000));
-      try {const r=await get('/api/wanxiang?period=7'); if(r.status===503) {ready=true;break}} catch {}
+      try {const r=await get('/api/wanxiang?period=7'); if(r.status===(demo?200:503)) {ready=true;break}} catch {}
       await delay(500);
     }
     assert(ready, 'Empty server failed to start: '+log.slice(-3000));
     for (const period of [7,30]) {
-      const r=await get('/api/wanxiang?period='+period); assert.equal(r.status,503);
-      assert.match((await r.json()).error,/尚无数据/);
+      const r=await get('/api/wanxiang?period='+period); assert.equal(r.status,demo?200:503);
+      const body=await r.json();
+      if(demo){assert.equal(body.demo,true);assert(body.reportKey.startsWith('demo-'));assert.equal(body.datasets.overview.daily.length,period);for(const kind of ['plans','products','units'])for(const metric of ['spend','revenue','orders','clicks','impressions'])assert.equal(body.datasets[kind].total[metric],body.datasets.overview.total[metric]);assert(body.datasets.units.rawRows.every(r=>r.values['主体ID'].startsWith('demo-')));}else assert.match(body.error,/尚无数据/);
     }
     assert.equal((await get('/api/wanxiang?period=999')).status,400);
-    assert.equal((await get('/api/product-catalog')).status,404);
+    const catalog=await get('/api/product-catalog');assert.equal(catalog.status,demo?200:404);
+    if(demo){const c=await catalog.json();assert.equal(c.products.length,4);assert(c.products.every(p=>p.url===''&&p.image===''));assert(c.reportKeys.includes('demo-synthetic-v1-7'));}
     const reviews=await (await get('/api/reviews')).json();
     assert.deepEqual(reviews.shops,[]); assert.deepEqual(reviews.reviews,[]);
     const denied=await fetch(origin+'/api/reviews',{method:'POST',headers:{origin:'https://example.com','content-type':'application/json'},body:'{}'});
@@ -53,13 +56,14 @@ async function main() {
     // Never submit an export or open a browser during the smoke test.
     const deniedCollect=await fetch(origin+'/api/collect',{method:'POST',headers:{origin:'https://example.com','content-type':'application/json'},body:'{"period":7}'});
     assert.equal(deniedCollect.status,403);
+    if(demo){for(const route of ['/api/collect','/api/report-folder'])assert.equal((await fetch(origin+route,{method:'POST',headers:{origin,'content-type':'application/json'},body:'{"period":7}'})).status,403);const saved=await fetch(origin+'/api/reviews',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({revision:0,op:'createShop',name:'虚拟店铺测试'})});assert.equal(saved.status,200);assert.equal((await (await get('/api/reviews')).json()).shops.length,1);assert.equal(await fs.stat(path.join(temp,'demo-reviews','reviews.json')).then(()=>true,()=>false),true);}
     const response=await get('/wanxiang'); assert.equal(response.status,200);
     assert.match(await response.text(),/万相台推广工作台/);
     const home=await fetch(origin+'/',{redirect:'manual'});
     assert([307,308].includes(home.status)); assert.equal(new URL(home.headers.get('location'),origin).pathname,'/wanxiang');
     assert.deepEqual(await fs.readdir(data),[]);
     assert.equal(await fs.stat(review).then(()=>true,()=>false),false);
-    console.log('PASS: empty 7/30 data, product waiting state, isolated reviews, cross-origin denial, workbench page and root redirect. No login/collection performed.');
+    console.log(demo?'PASS: synthetic data reconcile, catalog, isolated writable reviews, real collection/folder denied, page and redirect.':'PASS: empty data, isolated reviews, cross-origin denial, page and redirect.');
   } finally {
     if(process.platform==='win32' && child.pid) {
       await new Promise(r=>execFile('taskkill',['/PID',String(child.pid),'/T','/F'],()=>r()));

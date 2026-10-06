@@ -9,11 +9,13 @@
   },
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
+    "demo": "node scripts/start-demo.cjs",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint src",
     "test": "node scripts/test-period-comparison.cjs && node scripts/test-reviews.cjs",
     "test:empty": "node scripts/test-empty.cjs",
+    "test:demo": "node scripts/test-empty.cjs --demo",
     "generate": "node src/data/generateData.js"
   },
   "dependencies": {

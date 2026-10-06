@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises"
 import path from "node:path"
 import {createHash} from 'node:crypto'
 import { NextResponse } from "next/server"
+import {demoMode,demoDashboard} from '@/lib/demo-data'
 
 export const dynamic = "force-dynamic"
 export async function GET(request: Request) {
@@ -9,6 +10,7 @@ export async function GET(request: Request) {
     const directory = process.env.WANXIANG_DATA_DIR || path.resolve(process.cwd(), "../../data")
     const period = new URL(request.url).searchParams.get("period") || "7"
     if (!["7", "30"].includes(period)) return NextResponse.json({ error: "仅支持7天或30天" }, { status: 400 })
+    if(demoMode())return NextResponse.json(demoDashboard(period),{headers:{'Cache-Control':'no-store'}})
     const raw=await readFile(path.join(directory, `dashboard-${period}.json`), "utf8")
     const data = {...JSON.parse(raw),reportKey:createHash('sha256').update(raw).digest('hex')}
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } })

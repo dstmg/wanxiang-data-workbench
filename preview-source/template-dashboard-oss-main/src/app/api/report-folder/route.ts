@@ -2,8 +2,10 @@ import {spawn} from 'node:child_process'
 import {stat} from 'node:fs/promises'
 import path from 'node:path'
 import {NextResponse} from 'next/server'
+import {demoMode} from '@/lib/demo-data'
 export const runtime='nodejs'
 export async function POST(request:Request) {
+  if(demoMode())return NextResponse.json({error:'演示模式不打开真实报表目录'},{status:403})
   const url=new URL(request.url)
   if(!['127.0.0.1','localhost'].includes(url.hostname)||request.headers.get('origin')!==`${url.protocol}//${request.headers.get('host')}`)return NextResponse.json({error:'只允许本机工作台打开文件夹'},{status:403})
   // Fixed target: never accept arbitrary paths or shell commands.
