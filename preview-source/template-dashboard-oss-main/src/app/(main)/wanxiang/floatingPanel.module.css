@@ -1,0 +1,22 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  margin: 0 !important;
+  padding: 24px;
+  display: flex;
+  background: rgb(15 23 42 / 48%);
+  backdrop-filter: blur(3px);
+}
+.panel {
+  width: 100%;
+  min-width: 0;
+  height: calc(100dvh - 48px);
+  border: 1px solid rgb(148 163 184 / 30%);
+  border-radius: 20px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 28%);
+  outline: none;
+}
+@media (max-width: 639px) {
+  .backdrop { padding: 8px; }
+  .panel { height: calc(100dvh - 16px); border-radius: 14px; }
+}

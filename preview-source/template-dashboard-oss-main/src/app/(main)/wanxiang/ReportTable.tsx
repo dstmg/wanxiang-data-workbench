@@ -1,0 +1,35 @@
+"use client"
+import {useEffect,useRef,useState} from 'react'
+import {Metrics,Row} from './data'
+import {metricColor,MetricBaseline} from './metricStyle'
+const fmt=(v:number|null,d=2)=>v==null?'—':v.toLocaleString('zh-CN',{minimumFractionDigits:d,maximumFractionDigits:d})
+type Column=keyof Metrics|'spendShare'|'revenueShare'
+const catalog:[Column,string,number][]=[['spend','花费（元）',2],['revenue','成交金额（元）',2],['roi','ROI',2],['orders','成交笔数',0],['favorites','宝贝收藏数',0],['cart','加购数',0],['clicks','点击量',0],['ctr','点击率（%）',2],['cpc','平均点击花费',2],['impressions','展现量',0],['storeFavorites','店铺收藏数',0],['directCart','直接加购数',0],['indirectCart','间接加购数',0],['directRevenue','直接成交金额',2],['indirectRevenue','间接成交金额',2],['directOrders','直接成交笔数',0],['indirectOrders','间接成交笔数',0],['spendShare','花费占比',2],['revenueShare','成交占比',2]]
+const defaults:Column[]=['spend','revenue','roi','orders','favorites','cart','clicks','ctr','cpc','spendShare','revenueShare']
+export default function ReportTable({rows,total,benchmarks,offset,sort,ascending,top,onSort,onSelect,onRecord,view,full=false}:{rows:Row[];total:Metrics;benchmarks:MetricBaseline;offset:number;sort:keyof Metrics;ascending:boolean;top:number;onSort:(key:keyof Metrics)=>void;onSelect:(row:Row)=>void;onRecord?:(row:Row)=>void;view:string;full?:boolean}) {
+  const [expanded,setExpanded]=useState<string[]>([])
+  const [shown,setShown]=useState<Column[]>(defaults)
+  const [ready,setReady]=useState(false)
+  const [fullShown,setFullShown]=useState<Column[]>(catalog.map(c=>c[0]))
+  useEffect(()=>{if(full)setFullShown(catalog.map(c=>c[0]))},[full])
+  const activeShown=full?fullShown:shown
+  const changeShown=full?setFullShown:setShown
+  const [viewport,setViewport]=useState(0)
+  const nameWidth=viewport>0&&viewport<600?160:220
+  const metricWidth=(key:Column)=>['revenue','directRevenue','indirectRevenue','cpc'].includes(key)?124:108
+  const names=useRef(new Map<string,HTMLSpanElement>())
+  const [clipped,setClipped]=useState<string[]>([])
+  const scroll=useRef<HTMLDivElement>(null)
+  const preference='wanxiang-columns-'+view
+  useEffect(()=>{setReady(false);let values=defaults;try{const saved=JSON.parse(localStorage.getItem(preference)||'null');if(Array.isArray(saved))values=catalog.map(c=>c[0]).filter(k=>saved.includes(k))}catch{}setShown(values);setReady(true)},[preference])
+  useEffect(()=>{if(ready){try{localStorage.setItem(preference,JSON.stringify(shown))}catch{}}},[shown,ready,preference])
+  useEffect(()=>{const update=()=>{setViewport(scroll.current?.clientWidth||0);setClipped(rows.filter(r=>expanded.includes(r.id)||(names.current.get(r.id)?.scrollWidth||0)>(names.current.get(r.id)?.clientWidth||0)+1).map(r=>r.id))};const observer=new ResizeObserver(update);if(scroll.current)observer.observe(scroll.current);names.current.forEach(el=>observer.observe(el));update();return()=>observer.disconnect()},[rows,expanded,shown])
+  const columns=catalog.filter(c=>activeShown.includes(c[0]))
+  const value=(r:Row,k:Column)=>k==='spendShare'?(total.spend&&r.spend!==null?r.spend/total.spend*100:null):k==='revenueShare'?(total.revenue&&r.revenue!==null?r.revenue/total.revenue*100:null):r[k]
+  return <div className={full?"flex min-h-0 flex-1 flex-col":"mt-4"}>
+<div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2"><p className="text-xs text-gray-500">各项指标平均值比较 · <span className="text-red-600">高于基准</span> / <span className="text-emerald-600">低于基准</span> · 高于平均标红，低于平均标绿；零值灰色，不代表好坏</p><details className="relative text-xs"><summary className="cursor-pointer rounded-md border px-3 py-2">显示列 · {columns.length}项</summary><div className="absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-48px)] max-h-96 overflow-y-auto rounded-lg border bg-white p-3 shadow-lg dark:bg-gray-950"><div className="grid grid-cols-2 gap-2">{catalog.map(([k,label])=><label key={k} className="flex items-center gap-2"><input type="checkbox" checked={activeShown.includes(k)} onChange={()=>changeShown(activeShown.includes(k)?activeShown.filter(v=>v!==k):[...activeShown,k])}/>{label}</label>)}</div><button onClick={()=>changeShown(full?catalog.map(c=>c[0]):defaults)} className="mt-4 text-indigo-600">恢复默认列</button></div></details></div>
+    <div ref={scroll} className={full?"min-h-0 flex-1 overflow-auto rounded border border-gray-100":"max-h-[620px] overflow-auto rounded border border-gray-100"} aria-label="指标明细表格">
+      <table className="table-fixed text-sm" style={{width:nameWidth+columns.reduce((n,[key])=>n+metricWidth(key),0)}}><colgroup><col style={{width:nameWidth}}/>{columns.map(([k])=><col key={k} style={{width:metricWidth(k)}}/>)}</colgroup><thead className="sticky top-0 z-20 border-b bg-gray-50 text-xs text-gray-500 dark:bg-gray-900"><tr><th className="sticky left-0 z-30 bg-gray-50 px-2 py-2 text-left dark:bg-gray-900">排名 / 名称</th>{columns.map(([key,label])=><th key={key} data-field={key} className="px-2 py-2 text-right font-medium">{key==='spendShare'||key==='revenueShare'?<span className="block">{label}</span>:<button aria-label={label+'排序'} className="flex w-full items-center justify-between gap-1 text-right" onClick={()=>onSort(key)}><span aria-hidden="true" className="text-gray-400">{sort===key?(ascending&&!top?'↑':'↓'):'↕'}</span><span className="whitespace-nowrap">{label}</span></button>}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">{rows.map((r,i)=><tr key={r.id} data-id={r.id} className="group hover:bg-gray-50 dark:hover:bg-gray-900"><td className="sticky left-0 z-10 bg-white px-2 py-2 group-hover:bg-gray-50 dark:bg-gray-950 dark:group-hover:bg-gray-900"><div className="flex gap-2"><span className="shrink-0 text-xs text-gray-400">{offset+i+1}</span><div className="min-w-0 flex-1"><button title={r.name} onClick={()=>onSelect(r)} className="block w-full text-left font-medium text-indigo-600"><span ref={el=>{if(el)names.current.set(r.id,el);else names.current.delete(r.id)}} className={expanded.includes(r.id)?'block whitespace-normal break-words':'block truncate'}>{r.name}</span></button><p className="mt-0.5 truncate text-xs text-gray-400" title={(r.scene||'')+' · ID '+r.id}>{r.scene&&r.scene!==r.name?r.scene+' · ':''}ID {r.id}</p>{onRecord&&<button aria-label={`记问题 · ${r.name} · ID ${r.id}`} onClick={()=>onRecord(r)} className="mt-1 text-xs text-gray-500 underline">记问题</button>}{clipped.includes(r.id)&&<button onClick={()=>setExpanded(expanded.includes(r.id)?expanded.filter(id=>id!==r.id):[...expanded,r.id])} className="mt-1 text-xs text-gray-500">{expanded.includes(r.id)?'收起名称':'展开名称'}</button>}</div></div></td>{columns.map(([k,,digits])=><td key={k} data-field={k} title={'当前报表该项平均值：'+fmt(benchmarks[k]??null,digits)+'（不受搜索、TOP或分页影响）'} className={'px-2 py-2 text-right tabular-nums whitespace-nowrap '+metricColor(k,value(r,k),benchmarks[k])}>{fmt(value(r,k),digits)}{(k==='spendShare'||k==='revenueShare')&&value(r,k)!==null?'%':''}</td>)}</tr>)}</tbody></table>{!rows.length&&<p className="py-10 text-center text-sm text-gray-500">没有匹配的数据</p>}
+    </div>
+  </div>
+}

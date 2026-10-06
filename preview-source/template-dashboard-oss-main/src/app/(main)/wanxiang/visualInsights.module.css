@@ -1,0 +1,3 @@
+.reveal svg { animation: reveal .65s cubic-bezier(.22,1,.36,1) both; }
+@keyframes reveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .reveal svg { animation: none; } }
